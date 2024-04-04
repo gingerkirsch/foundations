@@ -17,20 +17,22 @@ object GenericFunctionExercises {
   case class Pair[A](first: A, second: A) {
     // 1a. Implement `swap` which exchanges `first` and `second`
     // such as Pair("John", "Doe").swap == Pair("Doe", "John")
-    def swap: Pair[A] =
-      ???
+    def swap: Pair[A] = Pair(second, first)
 
     // 1b. Implement `map` which applies a function to `first` and `second`
     // such as Pair("John", "Doe").map(_.length) == Pair(4,3)
     def map[To](update: A => To): Pair[To] =
-      ???
+      Pair(update(first), update(second))
 
     // 1c. Implement `zipWith` which merges two Pairs using a `combine` function
     // such as Pair(0, 2).zipWith(Pair(3, 4))((x, y) => x + y) == Pair(3, 6)
     //         Pair(2, 3).zipWith(Pair("Hello ", "World "))(replicate) == Pair("Hello Hello ", "World World World ")
     // Bonus: Why did we separate the arguments of `zipWith` into two set of parentheses?
     def zipWith[Other, To](other: Pair[Other])(combine: (A, Other) => To): Pair[To] =
-      ???
+      Pair(combine(first, other.first), combine(second, other.second))
+
+    def zipWithUncurried[Other, To](other: Pair[Other])(combine: (A, Other) => To): Pair[To] =
+      zipWith(other)(combine)
   }
 
   // 1d. Use the Pair API to decode the content of `secret`.
@@ -42,7 +44,10 @@ object GenericFunctionExercises {
       first = List(103, 110, 105, 109, 109, 97, 114, 103, 111, 114, 80),
       second = List(108, 97, 110, 111, 105, 116, 99, 110, 117, 70)
     )
-  lazy val decoded: Pair[String] = ???
+  lazy val decoded: Pair[String] =
+    secret.map(bytes => new String(bytes.toArray))
+      .map(_.reverse)
+      .swap
 
   // 1e. Use the Pair API to combine `productNames` and `productPrices` into `products`
   // such as products == Pair(Product("Coffee", 2.5), Product("Plane ticket", 329.99))
@@ -52,7 +57,9 @@ object GenericFunctionExercises {
   val productPrices: Pair[Double] = Pair(2.5, 329.99)
 
   lazy val products: Pair[Product] =
-    ???
+    productNames.zipWith(productPrices)(Product)
+
+  productNames.zipWithUncurried(productPrices)(Product)
 
   //////////////////////////////////////////////
   // Bonus question (not covered by the video)
@@ -86,7 +93,7 @@ object GenericFunctionExercises {
     //         (isEven && isPositive)(-4) == false
     //         (isEven && isPositive)(-7) == false
     def &&(other: Predicate[A]): Predicate[A] =
-      ???
+      Predicate(value => eval(value) && other.eval(value))
 
     // 2b. Implement `||` that combines two predicates using logical or
     // such as (isEven || isPositive)(12) == true
@@ -94,12 +101,20 @@ object GenericFunctionExercises {
     //         (isEven || isPositive)(-4) == true
     // but     (isEven || isPositive)(-7) == false
     def ||(other: Predicate[A]): Predicate[A] =
-      ???
+      Predicate(value => eval(value) || other.eval(value))
 
     // 2c. Implement `flip` that reverses a predicate
     // such as isEven.flip(11) == true
     def flip: Predicate[A] =
-      ???
+      Predicate(value => !eval(value))
+
+    def contramap[To](zoom: To => A): Predicate[To] =
+      Predicate(user => eval(zoom(user)))
+  }
+
+  object Predicate {
+    def False[A]: Predicate[A] = Predicate(_ => false)
+    def True[A]: Predicate[A] = Predicate(_ => true)
   }
 
   // 2d. Implement `isValidUser`, a predicate which checks if a `User` is:
@@ -115,7 +130,36 @@ object GenericFunctionExercises {
   case class User(name: String, age: Int)
 
   lazy val isValidUser: Predicate[User] =
-    ???
+    byUser(_.age)(isBiggerThan(18)) &&
+      byUser(_.name)(isLongerThan(3) && isCapitalised)
+
+  def byUser[To](zoom: User => To)(subPredicate: Predicate[To]): Predicate[User] =
+    subPredicate.contramap(zoom)
+  // isAdult && isUsernameLongerThan3 && isUsernameCapitalized
+  /*Predicate(user =>
+    user.age >= 18 &&
+    user.name.length >= 3 &&
+    user.name.capitalize == user.name)*/
+
+  def isLongerThan(min: Int): Predicate[String] =
+    isBiggerThan(min).contramap(_.length)
+
+  def isCapitalised: Predicate[String] =
+    Predicate(text => text.capitalize == text)
+
+  val isAdult: Predicate[User] = isBiggerThan(18).contramap(_.age) //Predicate(_.age >= 18)
+  val isUsernameLongerThan3: Predicate[User] = isBiggerThan(3).contramap(_.name.length) //Predicate(_.name.length >= 3)
+  val isUsernameCapitalized: Predicate[User] = Predicate(user => user.name.capitalize == user.name)
+
+  def foo[From, To](p: Predicate[From])(zoom: To => From): Predicate[To] =
+    //Predicate(user => p.eval(user.age))
+    Predicate(user => p.eval(zoom(user)))
+
+  def bar(p: Predicate[Int]): Predicate[User] =
+    Predicate(user => p.eval(user.name.length))
+
+  def isBiggerThan(min: Int): Predicate[Int] =
+    Predicate(_ >= min)
 
   ////////////////////////////
   // Exercise 3: JsonDecoder
@@ -124,8 +168,27 @@ object GenericFunctionExercises {
   // very basic representation of JSON
   type Json = String
 
-  trait JsonDecoder[A] {
+  trait JsonDecoder[A] { outer =>  // self-type or self-reference to use with nested syntax
     def decode(json: Json): A
+
+    // val outer = this
+
+    def map[To](update: A => To): JsonDecoder[To] =
+      new JsonDecoder[To] {
+        def decode(json: Json): To = {
+          update(outer.decode(json))
+        }
+      }
+
+    def orElse(other: JsonDecoder[A]):JsonDecoder[A] =
+      (json: Json) => Try(outer.decode(json)) match {
+          case Success(value) => value
+          case Failure(_) => other.decode(json)
+    }
+  }
+
+  new JsonDecoder[Long] {
+    def decode(json: Json): Long = json.toLong
   }
 
   val intDecoder: JsonDecoder[Int] = new JsonDecoder[Int] {
@@ -148,8 +211,11 @@ object GenericFunctionExercises {
   // such as userIdDecoder.decode("1234") == UserId(1234)
   // but     userIdDecoder.decode("hello") would throw an Exception
   case class UserId(value: Int)
-  lazy val userIdDecoder: JsonDecoder[UserId] =
-    ???
+
+  lazy val userIdDecoder: JsonDecoder[UserId] = intDecoder.map(UserId)
+   /* new JsonDecoder[UserId] {
+      def decode(json: Json): UserId = UserId(intDecoder.decode(json))
+    }*/
 
   // 3b. Implement `localDateDecoder`, a `JsonDecoder` for `LocalDate`
   // such as localDateDecoder.decode("\"2020-03-26\"") == LocalDate.of(2020,3,26)
@@ -158,13 +224,19 @@ object GenericFunctionExercises {
   // Note: You can parse a `LocalDate` using `LocalDate.parse` with a java.time.format.DateTimeFormatter
   // e.g. DateTimeFormatter.ISO_LOCAL_DATE
   lazy val localDateDecoder: JsonDecoder[LocalDate] =
-    ???
+    stringDecoder.map(LocalDate.parse(_, DateTimeFormatter.ISO_LOCAL_DATE))
+  /*{
+    ((json: Json) => {
+      val dateStr = stringDecoder.decode(json)
+      LocalDate.parse(dateStr)
+    })
+  }*/
 
   // 3c. Implement `map` a generic function that converts a `JsonDecoder` of `From`
   // into a `JsonDecoder` of `To`.
   // Bonus: Can you re-implement `userIdDecoder` and `localDateDecoder` using `map`
   def map[From, To](decoder: JsonDecoder[From])(update: From => To): JsonDecoder[To] =
-    ???
+    (json: Json) => update(decoder.decode(json): From): To
 
   // 3d. Move `map` inside of `JsonDecoder` trait so that we can use the syntax
   // `intDecoder.map(_ + 1)` instead of `map(intDecoder)(_ + 1)`
@@ -177,8 +249,20 @@ object GenericFunctionExercises {
   // but weirdLocalDateDecoder.decode("hello") would throw an Exception
   // Try to think how we could extend JsonDecoder so that we can easily implement
   // other decoders that follow the same pattern.
+  val longJsonDecoder: JsonDecoder[Long] = _.toLong
+  val longLocalDateDecoder: JsonDecoder[LocalDate] = longJsonDecoder.map(LocalDate.ofEpochDay)
+
   lazy val weirdLocalDateDecoder: JsonDecoder[LocalDate] =
-    ???
+    localDateDecoder.orElse(longLocalDateDecoder)
+  /*lazy val weirdLocalDateDecoder: JsonDecoder[LocalDate] = {
+    def decode(json: Json): LocalDate = {
+      val attempt = Try(localDateDecoder.decode(json))
+      attempt match {
+        case Success(date) => date
+        case Failure(_) =>  LocalDate.ofEpochDay (longJsonDecoder.decode(json))
+      }
+    }
+  }*/
 
   //////////////////////////////////////////////
   // Bonus question (not covered by the video)
