@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
+<svg xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:xl="http://www.w3.org/1999/xlink" version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1612 280" width="1612" height="280">
+  <defs>
+    <font-face font-family="Helvetica Neue" font-size="30" panose-1="2 0 5 3 0 0 0 2 0 4" units-per-em="1000" underline-position="-100" underline-thickness="50" slope="0" x-height="517" cap-height="714" ascent="951.9958" descent="-212.99744" font-weight="400">
+      <font-face-src>
+        <font-face-name name="HelveticaNeue"/>
+      </font-face-src>
+    </font-face>
+  </defs>
+  <metadata> Produced by OmniGraffle 7.18.5\n2021-08-04 13:44:20 +0000</metadata>
+  <g id="fp-program" fill="none" stroke-opacity="1" fill-opacity="1" stroke-dasharray="none" stroke="none">
+    <title>fp-program</title>
+    <g id="fp-program_Layer_1">
+      <title>Layer 1</title>
+      <g id="Graphic_120">
+        <path d="M 585 18 L 711 148.5 L 585 279 L 459 148.5 Z" fill="#589b9d"/>
+        <path d="M 585 18 L 711 148.5 L 585 279 L 459 148.5 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(498.02 110.05)" fill="white">
+          <tspan font-family="Helvetica Neue" font-size="30" font-weight="400" fill="white" x="5.59" y="29">Intermediate</tspan>
+          <tspan font-family="Helvetica Neue" font-size="30" font-weight="400" fill="white" x="34.765" y="64.84">Result 1</tspan>
+        </text>
+      </g>
+      <g id="Graphic_123">
+        <ellipse cx="135" cy="148.5" rx="126.000201335639" ry="130.500208526197" fill="#70a3d8"/>
+        <ellipse cx="135" cy="148.5" rx="126.000201335639" ry="130.500208526197" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(39.2 130.58)" fill="white">
+          <tspan font-family="Helvetica Neue" font-size="30" font-weight="400" fill="white" x="61.615" y="29">Input</tspan>
+        </text>
+      </g>
+      <g id="Graphic_122">
+        <path d="M 294 171 L 294 126 L 387 126 L 387 99 L 429 148.5 L 387 198 L 387 171 Z" fill="#acbdd0"/>
+        <path d="M 294 171 L 294 126 L 387 126 L 387 99 L 429 148.5 L 387 198 L 387 171 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_130">
+        <path d="M 1035 18 L 1154.833 108.17341 L 1109.061 254.0766 L 960.939 254.0766 L 915.1669 108.17341 Z" fill="#70a3d8"/>
+        <path d="M 1035 18 L 1154.833 108.17341 L 1109.061 254.0766 L 960.939 254.0766 L 915.1669 108.17341 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(939.2 107.71)" fill="white">
+          <tspan font-family="Helvetica Neue" font-size="30" font-weight="400" fill="white" x="11.890003" y="29">Intermediate</tspan>
+          <tspan font-family="Helvetica Neue" font-size="30" font-weight="400" fill="white" x="41.065003" y="64.84">Result 2</tspan>
+        </text>
+      </g>
+      <g id="Graphic_133">
+        <ellipse cx="1485" cy="148.5" rx="126.000201335639" ry="130.500208526197" fill="#589b9d"/>
+        <ellipse cx="1485" cy="148.5" rx="126.000201335639" ry="130.500208526197" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+        <text transform="translate(1389.2 130.58)" fill="white">
+          <tspan font-family="Helvetica Neue" font-size="30" font-weight="400" fill="white" x="49.375003" y="29">Output</tspan>
+        </text>
+      </g>
+      <g id="Graphic_136">
+        <path d="M 747 171 L 747 126 L 840 126 L 840 99 L 882 148.5 L 840 198 L 840 171 Z" fill="#acbdd0"/>
+        <path d="M 747 171 L 747 126 L 840 126 L 840 99 L 882 148.5 L 840 198 L 840 171 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+      <g id="Graphic_137">
+        <path d="M 1197 171 L 1197 126 L 1290 126 L 1290 99 L 1332 148.5 L 1290 198 L 1290 171 Z" fill="#acbdd0"/>
+        <path d="M 1197 171 L 1197 126 L 1290 126 L 1290 99 L 1332 148.5 L 1290 198 L 1290 171 Z" stroke="black" stroke-linecap="round" stroke-linejoin="round" stroke-width="1"/>
+      </g>
+    </g>
+  </g>
+</svg>
