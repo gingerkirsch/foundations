@@ -9,9 +9,21 @@ import scala.util.{Failure, Success, Try}
 
 trait IO[A] {
 
+  def unsafeRunAsync(callback: Try[A] => Unit): Unit
+
   // Executes the action.
   // This is the ONLY abstract method of the `IO` trait.
-  def unsafeRun(): A
+  def unsafeRun(): A = {
+    var result: Option[Try[A]] = None
+    val latch = new CountDownLatch(1)
+    unsafeRunAsync { tryA =>
+      result = Some(tryA)
+      latch.countDown()
+    }
+    latch.await()
+    result.get.get
+  }
+
 
   // Runs the current IO (`this`), discards its result and runs the second IO (`other`).
   // For example,
@@ -53,9 +65,14 @@ trait IO[A] {
   // action.unsafeRun()
   // Fetches the user with id 1234 from the database and send them an email using the email
   // address found in the database.
-  def flatMap[Next](callback: A => IO[Next]): IO[Next] = IO {
-    val result = unsafeRun()
-    callback(result).unsafeRun()
+  def flatMap[Next](next: A => IO[Next]): IO[Next] = IO.async { callback =>
+    unsafeRunAsync {
+      case Failure(e) => callback(Failure(e))
+      case Success(value) => next(value).unsafeRunAsync {
+        case Failure(exception) => callback(Failure(exception))
+        case Success(value) => callback(Success(value))
+      }
+    }
   }
 
   // Runs the current action, if it fails it executes `cleanup` and rethrows the original error.
@@ -148,23 +165,37 @@ trait IO[A] {
   // Runs both the current IO and `other` concurrently,
   // then combine their results into a tuple
   def parZip[Other](other: IO[Other])(ec: ExecutionContext): IO[(A, Other)] =
-    IO {
-      val future1: Future[A] = Future(this.unsafeRun())(ec)
+    IO.async { callback =>
+      val promise1: Promise[A] = Promise() // var promise: A = null
+      val promise2: Promise[Other] = Promise() // var promise2: Other = null
+      val zipped : Future[(A, Other)] = promise1.future.zip(promise2.future)
+      /*val future1: Future[A] = Future(this.unsafeRun())(ec)
       val future2: Future[Other] = Future(other.unsafeRun())(ec)
-      val zipped: Future[(A, Other)] = future1.zip(future2)
-
-      Await.result(zipped, Duration.Inf)
+      val zipped: Future[(A, Other)] = future1.zip(future2)*/
+      ec.execute(() => this.unsafeRunAsync(promise1.complete))
+      ec.execute(() => other.unsafeRunAsync(promise2.complete))
+      zipped.onComplete(callback)(ec)
     }
 
 }
 
 object IO {
+  def async[A](onComplete: (Try[A] => Unit) => Unit): IO[A] =
+    (callback: Try[A] => Unit) => onComplete(callback)
+
   // Constructor for IO. For example,
   // val greeting: IO[Unit] = IO { println("Hello") }
   // greeting.unsafeRun()
   // prints "Hello"
   def apply[A](action: => A): IO[A] =
-    () => action
+    (callback: Try[A] => Unit) => {
+      callback(Try(action))
+    }
+
+  def dispatch[A](action: => A)(ec: ExecutionContext): IO[A] = // on a thread pool
+    (callback: Try[A] => Unit) => {
+      ec.execute(() => callback(Try(action)))
+    }
 
   // Construct an IO which throws `error` everytime it is called.
   def fail[A](error: Throwable): IO[A] =
