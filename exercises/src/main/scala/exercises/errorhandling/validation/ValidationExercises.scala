@@ -34,16 +34,24 @@ object ValidationExercises {
   // validateCountry("ARG") == Invalid(NEL(NotSupported("ARG")))
   // Note: You can find several helpers methods in the companion object of Validation,
   //       as well as many extension methods in `package.scala`.
-  def validateCountry(countryCode: String): Validation[FormError, Country] =
-    ???
+  def validateCountry(country: String): Validation[FormError, Country] =
+    if (country.length == 3 && country.forall(c => c.isLetter && c.isUpper))
+      Country.all
+        .find(_.code == country)
+        .toValid(NotSupported(country))
+    else
+      InvalidFormat(country).invalid
 
   // 2. Copy-paste `checkUsernameSize` from `EitherExercises2` and adapt it to `Validation`.
   def checkUsernameSize(username: String): Validation[TooSmall, Unit] =
-    ???
+    Validation.cond(username.length >= 5, success = (), failure = TooSmall(username.length))
 
   // 3. Copy-paste `checkUsernameCharacters` from `EitherExercises2` and adapt it to `Validation`.
   def checkUsernameCharacters(username: String): Validation[InvalidCharacters, Unit] =
-    ???
+    username.toList.filterNot(isValidUsernameCharacter) match {
+      case Nil        => ().valid
+      case characters => InvalidCharacters(characters).invalid
+    }
 
   def isValidUsernameCharacter(c: Char): Boolean =
     c.isLetter || c.isDigit || c == '_' || c == '-'
@@ -55,11 +63,18 @@ object ValidationExercises {
   // validateUsername("!") == Invalid(NEL(TooSmall(1), InvalidCharacters(List('!'))))
   // Note: Check the methods `zip` and `zipWith` of `Validation`.
   def validateUsername(username: String): Validation[FormError, Username] =
-    ???
+    (checkUsernameSize(username), checkUsernameCharacters(username))
+      .zipWith((_, _) => Username(username))
 
   // 5. Implement `validateUser` so that it reports all errors.
-  def validateUser(usernameStr: String, countryStr: String): Validation[FormError, User] =
-    ???
+  def validateUser(usernameStr: String, countryStr: String): Validation[FieldError, User] =
+    (
+      form(FieldIds.username)(validateUsername(usernameStr)),
+      form(FieldIds.countryOfResidence)(validateCountry(countryStr))
+    ).zipWith(User.apply)
+
+  def form[A](fieldId: String)(validation: Validation[FormError, A]): Validation[FieldError, A] =
+    validation.mapErrorAll(es => NEL(FieldError(fieldId, es)))
 
   // 6. When validateUser` produces a `TooSmall(2)`, how do we know that it is about the username?
   // Update `validateUser` so that it groups all the errors by field (see `FieldError` below).

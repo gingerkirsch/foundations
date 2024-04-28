@@ -26,7 +26,12 @@ sealed trait Validation[+E, +A] {
   // 1.valid.zip("error2".invalid)          == Invalid(NEL("error2"))
   // 1.valid.zip("Hello".valid)             == Valid((1, "Hello"))
   def zip[E2 >: E, Other](other: Validation[E2, Other]): Validation[E2, (A, Other)] =
-    ???
+    (this, other) match {
+      case (Valid(a), Valid(b))         => Valid((a, b))
+      case (Invalid(es), Valid(_))      => Invalid(es)
+      case (Valid(_), Invalid(es))      => Invalid(es)
+      case (Invalid(es1), Invalid(es2)) => Invalid(es1 ++ es2)
+    }
 
   // alias for `zip` followed by `map`.
   def zipWith[E2 >: E, Other, Next](other: Validation[E2, Other])(
@@ -79,10 +84,10 @@ object Validation {
 
   // Accumulate all errors.
   // sequence(List(1.invalid, 2.valid, 3.invalid)) == Invalid(Nel(1,3))
-  def sequence[E, A](validations: List[Validation[E, A]]): Validation[E, List[A]] =
-    ???
+  //def sequence[E, A](validations: List[Validation[E, A]]): Validation[E, List[A]] =
+  //  ???
 
   // Alias for map + sequence
-  def traverse[E, A, Next](values: List[A])(update: A => Validation[E, Next]): Validation[E, List[Next]] =
-    sequence(values.map(update))
+  //def traverse[E, A, Next](values: List[A])(update: A => Validation[E, Next]): Validation[E, List[Next]] =
+  // sequence(values.map(update))
 }
