@@ -4,7 +4,7 @@ import java.time.LocalDate
 import exercises.action.fp.IO
 
 import scala.annotation.tailrec
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import scala.concurrent.duration._
 
 // This represent the main API of Lambda Corp.
@@ -14,6 +14,7 @@ trait SearchFlightService {
 }
 
 object SearchFlightService {
+  val ec: ExecutionContextExecutor = ExecutionContext.global
 
   // 1. Implement `fromTwoClients` which creates a `SearchFlightService` by
   // combining the results from two `SearchFlightClient`.
@@ -24,10 +25,23 @@ object SearchFlightService {
   // Note: A example based test is defined in `SearchFlightServiceTest`.
   //       You can also defined tests for `SearchResult` in `SearchResultTest`
   def fromTwoClients(client1: SearchFlightClient, client2: SearchFlightClient): SearchFlightService =
-    new SearchFlightService {
-      def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult] =
-        ???
+    (from: Airport, to: Airport, date: LocalDate) => {
+      def searchByClient(client: SearchFlightClient): IO[List[Flight]] =
+        client.search(from, to, date)
+          .handleErrorWith(e => IO.debug(s"Oops an error occured: $e") andThen IO(Nil))
 
+
+      searchByClient(client1)
+        .parZip(searchByClient(client2))(ec)
+        .map { case (flights1, flights2) => SearchResult(flights1 ++ flights2) }
+
+      /* - sequential
+      for{
+        flight1 <- searchByClient(client1)
+        flight2 <- searchByClient(client2)
+        combined = flight1 ++ flight2 //.sorted(SearchResult.bestOrdering)
+      } yield SearchResult(combined)
+      */
     }
 
   // 2. Several clients can return data for the same flight. For example, if we combine data
@@ -45,10 +59,35 @@ object SearchFlightService {
   // Note: You can use a recursion/loop/foldLeft to call all the clients and combine their results.
   // Note: We can assume `clients` to contain less than 100 elements.
   def fromClients(clients: List[SearchFlightClient]): SearchFlightService =
-    new SearchFlightService {
-      def search(from: Airport, to: Airport, date: LocalDate): IO[SearchResult] =
-        ???
+    (from: Airport, to: Airport, date: LocalDate) => {
+      def fetchFlights(client: SearchFlightClient): IO[List[Flight]] =
+        client
+          .search(from, to, date)
+          .handleErrorWith(_ => IO(Nil))
+          .map(_.filter { flight =>
+            flight.from == from && flight.to == to && flight.departureDate == date
+          })
+      // map + flatten = flatMap
+      // map + fold = foldMap
+      // map + sequence = traverse
+      clients
+        .traverse(fetchFlights)
+        .map(_.flatten)
+        .map(SearchResult.apply)
     }
+/*
+        def searchAllClients(clients: List[SearchFlightClient]): IO[List[Flight]] =
+          clients match {
+            case Nil => IO(Nil)
+            case client :: otherClients =>
+              for {
+                flights1 <- searchByClient(client)
+                flight2 <- searchAllClients(clients)
+              } yield flights1 ++ flight2
+          }
+        searchAllClients(clients).map(SearchResult(_))
+ */
+
 
   // 5. Refactor `fromClients` using `sequence` or `traverse` from the `IO` companion object.
 

@@ -1,6 +1,7 @@
 package exercises.action.fp
 
 import java.util.concurrent.CountDownLatch
+import scala.::
 import scala.annotation.tailrec
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.concurrent.{Await, ExecutionContext, Future, Promise}
@@ -21,7 +22,7 @@ trait IO[A] {
   // prints "Fetching user", fetches user 1234 from db and returns it.
   // Note: There is a test for `andThen` in `exercises.action.fp.IOTest`.
   def andThen[Other](other: IO[Other]): IO[Other] =
-    ???
+    flatMap(_ => other)
 
   // Popular alias for `andThen` (cat-effect, Monix, ZIO).
   // For example,
@@ -29,8 +30,8 @@ trait IO[A] {
   // Note: The arrow head points toward the result we keep.
   //       Another popular symbol is <* so that `action1 <* action2`
   //       executes `action1` and then `action2` but returns the result of `action1`
-  def *>[Other](other: IO[Other]): IO[Other] =
-    ???
+  def *>[Other](other: IO[Other]): IO[Other] =  // ice cream operator, andThen
+    andThen(other)
 
   // Runs the current action (`this`) and update the result with `callback`.
   // For example,
@@ -41,7 +42,7 @@ trait IO[A] {
   // Note: `callback` is expected to be an FP function (total, deterministic, no action).
   //       Use `flatMap` if `callBack` is not an FP function.
   def map[Next](callBack: A => Next): IO[Next] =
-    ???
+    flatMap(value => IO(callBack(value)))
 
   // Runs the current action (`this`), if it succeeds passes the result to `callback` and
   // runs the second action.
@@ -52,8 +53,10 @@ trait IO[A] {
   // action.unsafeRun()
   // Fetches the user with id 1234 from the database and send them an email using the email
   // address found in the database.
-  def flatMap[Next](callback: A => IO[Next]): IO[Next] =
-    ???
+  def flatMap[Next](callback: A => IO[Next]): IO[Next] = IO {
+    val result = unsafeRun()
+    callback(result).unsafeRun()
+  }
 
   // Runs the current action, if it fails it executes `cleanup` and rethrows the original error.
   // If the current action is a success, it will return the result.
@@ -67,7 +70,15 @@ trait IO[A] {
   // IO(throw new Exception("Boom!")).onError(logError).unsafeRun()
   // prints "Got an error: Boom!" and throws new Exception("Boom!")
   def onError[Other](cleanup: Throwable => IO[Other]): IO[A] =
-    ???
+    handleErrorWith(e => cleanup(e) *> IO.fail(e))
+    /*IO {
+      Try(unsafeRun()) match {
+        case Success(value) => value
+        case Failure(exception) =>
+          cleanup(exception).unsafeRun()
+          throw exception
+      }
+    }*/
 
   // Retries this action until either:
   // * It succeeds.
@@ -84,7 +95,18 @@ trait IO[A] {
   // Note: `maxAttempt` must be greater than 0, otherwise the `IO` should fail.
   // Note: `retry` is a no-operation when `maxAttempt` is equal to 1.
   def retry(maxAttempt: Int): IO[A] =
-    ???
+    if (maxAttempt <= 0) IO.fail(new IllegalArgumentException("maxAttempt must be greater than 0"))
+    else if (maxAttempt == 1) this
+    else handleErrorWith(_ => retry(maxAttempt - 1))
+    /*IO {
+      require(maxAttempt > 0, "maxAttempt must be greater than 0")
+      Try(unsafeRun()) match {
+        case Success(value) => value
+        case Failure(exception) =>
+          if (maxAttempt == 1) throw exception
+          else retry(maxAttempt - 1).unsafeRun()
+      }
+    }*/
 
   // Checks if the current IO is a failure or a success.
   // For example,
@@ -94,7 +116,9 @@ trait IO[A] {
   // 1. Success(User(1234, "Bob", ...)) if `action` was successful or
   // 2. Failure(new Exception("User 1234 not found")) if `action` throws an exception
   def attempt: IO[Try[A]] =
-    ???
+    IO {
+      Try(unsafeRun())
+    }
 
   // If the current IO is a success, do nothing.
   // If the current IO is a failure, execute `callback` and keep its result.
@@ -104,7 +128,10 @@ trait IO[A] {
   //   logError(e).andThen(emailClient.send(user.email, "Sorry something went wrong"))
   // )
   def handleErrorWith(callback: Throwable => IO[A]): IO[A] =
-    ???
+    attempt.flatMap {
+      case Success(value) => IO(value)
+      case Failure(exception) => callback(exception)
+    }
 
   //////////////////////////////////////////////
   // Concurrent IO
@@ -121,7 +148,13 @@ trait IO[A] {
   // Runs both the current IO and `other` concurrently,
   // then combine their results into a tuple
   def parZip[Other](other: IO[Other])(ec: ExecutionContext): IO[(A, Other)] =
-    ???
+    IO {
+      val future1: Future[A] = Future(this.unsafeRun())(ec)
+      val future2: Future[Other] = Future(other.unsafeRun())(ec)
+      val zipped: Future[(A, Other)] = future1.zip(future2)
+
+      Await.result(zipped, Duration.Inf)
+    }
 
 }
 
@@ -131,9 +164,7 @@ object IO {
   // greeting.unsafeRun()
   // prints "Hello"
   def apply[A](action: => A): IO[A] =
-    new IO[A] {
-      def unsafeRun(): A = action
-    }
+    () => action
 
   // Construct an IO which throws `error` everytime it is called.
   def fail[A](error: Throwable): IO[A] =
@@ -159,7 +190,27 @@ object IO {
   // If no error occurs, it returns the users in the same order:
   // List(User(1111, ...), User(2222, ...), User(3333, ...))
   def sequence[A](actions: List[IO[A]]): IO[List[A]] =
-    ???
+    actions
+      .foldLeft(IO(List.empty[A])) { (state, action) =>
+        state.zip(action).map { case (list, a) => a :: list }
+      }
+      .map(_.reverse)
+      /*
+      for {
+        result1 <- state
+        result2 <- action
+      } yield result1 :+ result2  // or :: and in the end reverse everything
+       */
+
+  /*
+    actions match {
+      case Nil => IO(Nil)
+      case head :: next =>
+        for {
+          result1 <- head
+          result2 <- sequence(next)
+        } yield result1 :: result2
+    }*/
 
   // `traverse` is a shortcut for `map` followed by `sequence`, similar to how
   // `flatMap`  is a shortcut for `map` followed by `flatten`
@@ -183,7 +234,11 @@ object IO {
   // List(User(1111, ...), User(2222, ...), User(3333, ...))
   // Note: You may want to use `parZip` to implement `parSequence`.
   def parSequence[A](actions: List[IO[A]])(ec: ExecutionContext): IO[List[A]] =
-    ???
+    actions
+      .foldLeft(IO(List.empty[A])) { (state, action) =>
+        state.parZip(action)(ec).map { case (list, a) => a :: list }
+      }
+      .map(_.reverse)
 
   // `parTraverse` is a shortcut for `map` followed by `parSequence`, similar to how
   // `flatMap`     is a shortcut for `map` followed by `flatten`

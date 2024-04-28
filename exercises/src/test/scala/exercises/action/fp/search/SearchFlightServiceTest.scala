@@ -18,7 +18,7 @@ import scala.util.Random
 // testOnly exercises.action.fp.search.SearchFlightServiceTest
 class SearchFlightServiceTest extends AnyFunSuite with ScalaCheckDrivenPropertyChecks {
 
-  ignore("fromTwoClients example") {
+  test("fromTwoClients example") {
     val now   = Instant.now()
     val today = LocalDate.now()
 
@@ -35,5 +35,32 @@ class SearchFlightServiceTest extends AnyFunSuite with ScalaCheckDrivenPropertyC
 
     assert(result == SearchResult(List(flight1, flight2, flight3, flight4)))
   }
+
+  test("fromTwoClients should handle errors gracefully") {
+    forAll(airportGen, airportGen, dateGen, Gen.listOf(flightGen), arbitrary[Throwable]) {
+      (from, to, date, flights, error) =>
+        val now = Instant.now()
+        val today = LocalDate.now()
+
+        val client1 = SearchFlightClient.constant(IO(flights))
+        val client2 = SearchFlightClient.constant(IO.fail(error))
+
+        val service = SearchFlightService.fromTwoClients(client1, client2)
+        val result = service.search(from, to, date).attempt.unsafeRun()
+
+        assert(result.isSuccess)
+    }
+  }
+
+  test("fromClients should handle errors gracefully") {
+    forAll(airportGen, airportGen, dateGen, Gen.listOf(clientGen)) {
+      (from, to, date, clients) =>
+        val service = SearchFlightService.fromClients(clients)
+        val result = service.search(from, to, date).attempt.unsafeRun()
+
+        assert(result.isSuccess)
+    }
+  }
+
 
 }
