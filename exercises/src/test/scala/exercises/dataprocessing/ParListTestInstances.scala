@@ -1,8 +1,9 @@
 package exercises.dataprocessing
 
 import java.time.LocalDate
-
 import org.scalacheck.{Arbitrary, Gen}
+
+import scala.concurrent.ExecutionContext
 
 trait ParListTestInstances {
   val sampleGen: Gen[Sample] =
@@ -38,7 +39,7 @@ trait ParListTestInstances {
     Arbitrary(
       Gen
         .listOf(Gen.listOf(arbA.arbitrary))
-        .map(partitions => new ParList(partitions))
+        .map(partitions => new ParList(partitions, ExecutionContext.global))
     )
 
   val summaryGen: Gen[Summary] =
